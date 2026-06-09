@@ -15,13 +15,15 @@ function App() {
 
   // Load documents + chat history
   useEffect(() => {
-    loadDocuments();
+  loadDocuments();
 
-    const savedMessages = localStorage.getItem("chatHistory");
-    if (savedMessages) {
-      setMessages(JSON.parse(savedMessages));
-    }
-  }, []);
+  const savedMessages = localStorage.getItem("chatHistory");
+  if (savedMessages) {
+    setMessages(JSON.parse(savedMessages));
+  }
+
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // Save chat history + scroll
   useEffect(() => {
