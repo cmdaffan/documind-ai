@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 
+const BASE_URL = "https://documind-ai-c9qm.onrender.com";
+
 function App() {
   const [file, setFile] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -11,52 +13,45 @@ function App() {
 
   const chatEndRef = useRef(null);
 
+  // Load documents + chat history
   useEffect(() => {
     loadDocuments();
 
     const savedMessages = localStorage.getItem("chatHistory");
-
     if (savedMessages) {
       setMessages(JSON.parse(savedMessages));
     }
   }, []);
 
+  // Save chat history + scroll
   useEffect(() => {
-    localStorage.setItem(
-      "chatHistory",
-      JSON.stringify(messages)
-    );
+    localStorage.setItem("chatHistory", JSON.stringify(messages));
 
-    chatEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // =========================
+  // LOAD DOCUMENTS
+  // =========================
   const loadDocuments = async () => {
     try {
-      const res = await fetch(
-        "http://127.0.0.1:8000/documents"
-      );
-
+      const res = await fetch(`${BASE_URL}/documents`);
       const data = await res.json();
 
-      setDocuments(data.documents);
+      setDocuments(data.documents || []);
 
-      if (
-        data.documents.length > 0 &&
-        !selectedDoc
-      ) {
+      if (data.documents?.length > 0 && !selectedDoc) {
         setSelectedDoc(data.documents[0]);
       }
-
     } catch (err) {
-      console.log(err);
+      console.log("Load documents error:", err);
     }
   };
 
+  // =========================
+  // UPLOAD FILE
+  // =========================
   const uploadFile = async () => {
-
     if (!file) {
       alert("Select PDF first");
       return;
@@ -66,36 +61,29 @@ function App() {
     formData.append("file", file);
 
     try {
-
-      const res = await fetch(
-        "http://127.0.0.1:8000/upload",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+      const res = await fetch(`${BASE_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
 
       const data = await res.json();
 
       if (data.success) {
-
-        alert(
-          `${data.filename} uploaded successfully`
-        );
-
+        alert(`${data.filename} uploaded successfully`);
+        setFile(null);
         loadDocuments();
-
       } else {
-        alert(data.error);
+        alert(data.error || "Upload failed");
       }
-
-    } catch {
+    } catch (err) {
       alert("Upload failed");
     }
   };
 
+  // =========================
+  // ASK QUESTION
+  // =========================
   const askQuestion = async () => {
-
     if (!question.trim()) return;
 
     if (!selectedDoc) {
@@ -103,13 +91,10 @@ function App() {
       return;
     }
 
-    const time = new Date().toLocaleTimeString(
-      [],
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    );
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     const userMsg = {
       role: "user",
@@ -118,49 +103,34 @@ function App() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
-
     setLoading(true);
 
     try {
-
-      const res = await fetch(
-        "http://127.0.0.1:8000/ask",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            question,
-            selected_doc: selectedDoc,
-          }),
-        }
-      );
+      const res = await fetch(`${BASE_URL}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          selected_doc: selectedDoc,
+        }),
+      });
 
       const data = await res.json();
 
       const aiMsg = {
         role: "ai",
         text: data.answer,
-        time: new Date().toLocaleTimeString(
-          [],
-          {
-            hour: "2-digit",
-            minute: "2-digit",
-          }
-        ),
+        time: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       };
 
-      setMessages((prev) => [
-        ...prev,
-        aiMsg,
-      ]);
-
+      setMessages((prev) => [...prev, aiMsg]);
       setQuestion("");
-
-    } catch {
-
+    } catch (err) {
       setMessages((prev) => [
         ...prev,
         {
@@ -174,22 +144,23 @@ function App() {
     setLoading(false);
   };
 
-  const clearChat = () => {
-
-    localStorage.removeItem(
-      "chatHistory"
-    );
-
+  // =========================
+  // CLEAR CHAT
+  // =========================
+  const clearChat = async () => {
+    localStorage.removeItem("chatHistory");
     setMessages([]);
 
-    fetch(
-      "http://127.0.0.1:8000/clear",
-      {
+    try {
+      await fetch(`${BASE_URL}/clear`, {
         method: "POST",
-      }
-    );
+      });
+    } catch (err) {
+      console.log(err);
+    }
   };
 
+  // ENTER KEY SUPPORT
   const handleEnter = (e) => {
     if (e.key === "Enter") {
       askQuestion();
@@ -199,145 +170,92 @@ function App() {
   return (
     <div className="app">
 
+      {/* SIDEBAR */}
       <div className="sidebar">
+        <div className="logo">DocuMind AI</div>
 
-        <div className="logo">
-          DocuMind AI
-        </div>
-
-        <div className="sidebarTitle">
-          Documents
-        </div>
+        <div className="sidebarTitle">Documents</div>
 
         {documents.map((doc, index) => (
           <div
             key={index}
-            onClick={() =>
-              setSelectedDoc(doc)
-            }
+            onClick={() => setSelectedDoc(doc)}
             className={
-              selectedDoc === doc
-                ? "docItem activeDoc"
-                : "docItem"
+              selectedDoc === doc ? "docItem activeDoc" : "docItem"
             }
           >
             📄 {doc}
           </div>
         ))}
-
       </div>
 
+      {/* MAIN */}
       <div className="main">
 
         <div className="header">
-
           <div>
-            <h1>
-              Enterprise Knowledge Assistant
-            </h1>
-
+            <h1>Enterprise Knowledge Assistant</h1>
             <p>
-              Selected:
-              {" "}
-              <strong>
-                {selectedDoc || "None"}
-              </strong>
+              Selected: <strong>{selectedDoc || "None"}</strong>
             </p>
           </div>
 
-          <button
-            onClick={clearChat}
-          >
-            Clear Chat
-          </button>
-
+          <button onClick={clearChat}>Clear Chat</button>
         </div>
 
+        {/* UPLOAD */}
         <div className="uploadSection">
-
           <input
             type="file"
             accept=".pdf"
-            onChange={(e) =>
-              setFile(e.target.files[0])
-            }
+            onChange={(e) => setFile(e.target.files[0])}
           />
 
-          <button
-            onClick={uploadFile}
-          >
-            Upload PDF
-          </button>
-
+          <button onClick={uploadFile}>Upload PDF</button>
         </div>
 
+        {/* CHAT */}
         <div className="chatBox">
 
-          {messages.map(
-            (msg, index) => (
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={msg.role === "user" ? "userWrapper" : "aiWrapper"}
+            >
               <div
-                key={index}
-                className={
-                  msg.role === "user"
-                    ? "userWrapper"
-                    : "aiWrapper"
-                }
+                className={msg.role === "user" ? "userMessage" : "aiMessage"}
               >
-                <div
-                  className={
-                    msg.role === "user"
-                      ? "userMessage"
-                      : "aiMessage"
-                  }
-                >
-                  {msg.text}
-                </div>
-
-                <div className="timeStamp">
-                  {msg.time}
-                </div>
-
+                {msg.text}
               </div>
-            )
-          )}
+
+              <div className="timeStamp">{msg.time}</div>
+            </div>
+          ))}
 
           {loading && (
             <div className="typing">
-
               <span></span>
               <span></span>
               <span></span>
-
             </div>
           )}
 
           <div ref={chatEndRef}></div>
-
         </div>
 
+        {/* INPUT */}
         <div className="inputArea">
-
           <input
             value={question}
-            onChange={(e) =>
-              setQuestion(
-                e.target.value
-              )
-            }
+            onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleEnter}
             placeholder="Ask a question..."
           />
 
-          <button
-            onClick={askQuestion}
-          >
-            Send
-          </button>
-
+          <button onClick={askQuestion}>Send</button>
         </div>
 
       </div>
-
     </div>
   );
 }
