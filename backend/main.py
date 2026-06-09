@@ -2,8 +2,23 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pypdf import PdfReader
+import google.generativeai as genai
 import tempfile
-import requests
+import os
+
+# =========================
+# GEMINI CONFIG
+# =========================
+
+genai.configure(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
+
+model = genai.GenerativeModel("gemini-2.5-flash")
+
+# =========================
+# FASTAPI
+# =========================
 
 app = FastAPI()
 
@@ -15,26 +30,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# =========================
+# MEMORY
+# =========================
+
 documents = []
 chat_history = []
 
+# =========================
+# MODELS
+# =========================
 
 class Question(BaseModel):
     question: str
     selected_doc: str
 
+# =========================
+# HOME
+# =========================
 
 @app.get("/")
 def home():
-    return {"message": "DocuMind AI Backend Running"}
+    return {
+        "message": "DocuMind AI Backend Running"
+    }
 
+# =========================
+# UPLOAD PDF
+# =========================
 
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
 
     try:
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".pdf"
+        ) as temp:
+
             temp.write(await file.read())
             temp_path = temp.name
 
@@ -43,6 +77,7 @@ async def upload(file: UploadFile = File(...)):
         text = ""
 
         for page in reader.pages:
+
             page_text = page.extract_text()
 
             if page_text:
@@ -68,6 +103,9 @@ async def upload(file: UploadFile = File(...)):
             "error": str(e)
         }
 
+# =========================
+# DOCUMENTS
+# =========================
 
 @app.get("/documents")
 def get_documents():
@@ -79,42 +117,43 @@ def get_documents():
         ]
     }
 
+# =========================
+# ASK QUESTION
+# =========================
 
 @app.post("/ask")
 async def ask(data: Question):
 
-    if len(documents) == 0:
-        return {
-            "answer": "Please upload at least one PDF."
-        }
+    try:
 
-    selected_content = ""
+        if len(documents) == 0:
 
-    for doc in documents:
-        if doc["filename"] == data.selected_doc:
-            selected_content = doc["content"]
-            break
+            return {
+                "answer": "Please upload at least one PDF."
+            }
 
-    if not selected_content:
-        return {
-            "answer": "Please select a document."
-        }
+        selected_content = ""
 
-    chat_history.append(
-        {
-            "role": "user",
-            "content": data.question
-        }
-    )
+        for doc in documents:
 
-    recent_history = chat_history[-10:]
+            if doc["filename"] == data.selected_doc:
+                selected_content = doc["content"]
+                break
 
-    prompt = f"""
+        if not selected_content:
+
+            return {
+                "answer": "Please select a document."
+            }
+
+        recent_history = chat_history[-10:]
+
+        prompt = f"""
 You are DocuMind AI.
 
 You are an enterprise knowledge assistant.
 
-Answer ONLY using the document content below.
+Answer ONLY from the uploaded document.
 
 DOCUMENT:
 {selected_content[:12000]}
@@ -126,24 +165,22 @@ QUESTION:
 {data.question}
 
 Rules:
-- Be professional.
-- If answer is not found, say so.
-- Keep answers concise and useful.
+1. Answer only from the document.
+2. Be concise and professional.
+3. If information is unavailable, say:
+   Information not found in uploaded document.
 """
 
-    try:
+        response = model.generate_content(prompt)
 
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "mistral",
-                "prompt": prompt,
-                "stream": False
-            },
-            timeout=300
+        answer = response.text
+
+        chat_history.append(
+            {
+                "role": "user",
+                "content": data.question
+            }
         )
-
-        answer = response.json()["response"]
 
         chat_history.append(
             {
@@ -159,9 +196,12 @@ Rules:
     except Exception as e:
 
         return {
-            "answer": f"AI Error: {str(e)}"
+            "answer": f"Gemini Error: {str(e)}"
         }
 
+# =========================
+# HISTORY
+# =========================
 
 @app.get("/history")
 def history():
@@ -170,6 +210,9 @@ def history():
         "history": chat_history
     }
 
+# =========================
+# CLEAR CHAT
+# =========================
 
 @app.post("/clear")
 def clear_chat():
