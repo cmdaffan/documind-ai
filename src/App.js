@@ -49,7 +49,26 @@ function App() {
       console.log("Load documents error:", err);
     }
   };
+const deleteDocument = async (filename) => {
+  try {
 
+    await fetch(
+      `${BASE_URL}/delete/${filename}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (selectedDoc === filename) {
+      setSelectedDoc("");
+    }
+
+    loadDocuments();
+
+  } catch (err) {
+    console.log("Delete error:", err);
+  }
+};
   // =========================
   // UPLOAD FILE
   // =========================
@@ -179,16 +198,32 @@ function App() {
         <div className="sidebarTitle">Documents</div>
 
         {documents.map((doc, index) => (
-          <div
-            key={index}
-            onClick={() => setSelectedDoc(doc)}
-            className={
-              selectedDoc === doc ? "docItem activeDoc" : "docItem"
-            }
-          >
-            📄 {doc}
-          </div>
-        ))}
+  <div
+    key={index}
+    className={
+      selectedDoc === doc
+        ? "docItem activeDoc"
+        : "docItem"
+    }
+  >
+    <span
+      style={{
+        flex: 1,
+        cursor: "pointer"
+      }}
+      onClick={() => setSelectedDoc(doc)}
+    >
+      📄 {doc}
+    </span>
+
+    <button
+      className="deleteBtn"
+      onClick={() => deleteDocument(doc)}
+    >
+      ✕
+    </button>
+  </div>
+))}
       </div>
 
       {/* MAIN */}

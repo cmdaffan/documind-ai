@@ -222,3 +222,17 @@ def clear_chat():
     return {
         "message": "Chat history cleared"
     }
+@app.delete("/delete/{filename}")
+def delete_document(filename: str):
+
+    global documents
+
+    documents = [
+        doc
+        for doc in documents
+        if doc["filename"] != filename
+    ]
+
+    return {
+        "success": True
+    }

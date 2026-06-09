@@ -303,3 +303,21 @@ button:hover{
   }
 
 }
+.docItem{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.deleteBtn{
+  background:#ef4444;
+  padding:6px 10px;
+  border-radius:8px;
+  border:none;
+  color:white;
+  cursor:pointer;
+}
+
+.deleteBtn:hover{
+  background:#dc2626;
+}
